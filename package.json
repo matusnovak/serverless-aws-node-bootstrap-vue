@@ -1,0 +1,16 @@
+{
+  "name": "serverless-aws-node-bootstrap-vue",
+  "version": "1.0.0",
+  "description": "",
+  "devDependencies": {
+    "serverless-apig-s3": "^2.0.0"
+  },
+  "scripts": {
+    "package:server": "serverless package --stage production",
+    "deploy:server": "serverless deploy --stage production",
+    "deploy:client": "cd client && npm run build && cd .. && serverless client deploy --stage production",
+    "postinstall": "cd client && npm install && cd .. && cd server && npm install && cd .."
+  },
+  "author": "Matus Novak",
+  "license": "MIT"
+}

@@ -1,0 +1,170 @@
+service: node-bootstrap-vue
+
+custom:
+  apigs3:
+    dist: client/dist
+  dynamodb:
+    tablePosts: ${self:service}-${self:provider.stage}-posts
+    tableComments: ${self:service}-${self:provider.stage}-comments
+    tableUsers: ${self:service}-${self:provider.stage}-users
+  auth:
+    secret: 'verysecrettoken'
+
+package:
+  exclude:
+    # Exclude everything!
+    - "*/**"
+  include:
+    # Source files
+    - "server/src/rest/**"
+    - "server/src/utils/**"
+    # Dependencies bcryptjs + jsonwebtoken
+    - "server/node_modules/bcryptjs/**"
+    - "server/node_modules/buffer-equal-constant-time/**"
+    - "server/node_modules/ecdsa-sig-formatter/**"
+    - "server/node_modules/jsonwebtoken/**"
+    - "server/node_modules/jwa/**"
+    - "server/node_modules/jws/**"
+    - "server/node_modules/lodash*/**"
+    - "server/node_modules/ms/**"
+    - "server/node_modules/safe-buffer/**"
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  memorySize: 128
+  environment:
+    DYNAMODB_TABLE_POSTS: ${self:custom.dynamodb.tablePosts}
+    DYNAMODB_TABLE_COMMENTS: ${self:custom.dynamodb.tableComments}
+    DYNAMODB_TABLE_USERS: ${self:custom.dynamodb.tableUsers}
+    AUTH_SECRET: ${self:custom.auth.secret}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:service}-${self:provider.stage}-*"
+
+plugins:
+  - serverless-apig-s3
+
+functions:
+  # User handling functions
+  user_auth:
+    handler: server/src/rest/users.auth
+  user_register:
+    handler: server/src/rest/users.register
+    events:
+      - http:
+          path: rest/user/register
+          method: post
+  user_login:
+    handler: server/src/rest/users.login
+    events:
+      - http:
+          path: rest/user/login
+          method: post
+  user_logout:
+    handler: server/src/rest/users.logout
+    events:
+      - http:
+          path: rest/user/logout
+          method: post
+  # Post handling functions
+  post_list:
+    handler: server/src/rest/posts.list
+    events:
+      - http:
+          path: rest/post
+          method: get
+  post_read:
+    handler: server/src/rest/posts.read
+    events:
+      - http:
+          path: rest/post/{postId}
+          method: get
+          request:
+            parameters:
+              postId: true
+  post_create:
+    handler: server/src/rest/posts.create
+    events:
+      - http:
+          path: rest/post
+          method: post
+          authorizer: user_auth
+  # Comments handling functions
+  comment_list:
+    handler: server/src/rest/comments.list
+    events:
+      - http:
+          path: rest/post/{postId}/comment
+          method: get
+          request:
+            parameters:
+              postId: true
+  comment_create:
+    handler: server/src/rest/comments.create
+    events:
+      - http:
+          path: rest/post/{postId}/comment
+          method: post
+          authorizer: user_auth
+          request:
+            parameters:
+              postId: true
+
+resources:
+  Resources:
+    DynamoDbTablePosts:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Delete
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:custom.dynamodb.tablePosts}
+    DynamoDbTableComments:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Delete
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: postid
+            AttributeType: S
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: postid
+            KeyType: HASH
+          -
+            AttributeName: id
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:custom.dynamodb.tableComments}
+    DynamoDbTableUserss:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Delete
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:custom.dynamodb.tableUsers}
